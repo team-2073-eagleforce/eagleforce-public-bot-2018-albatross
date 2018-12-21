@@ -1,0 +1,129 @@
+import jaci.openrio.gradle.frc.RoboRIO
+
+plugins {
+    id "java"
+    id "eclipse"
+    id "idea"
+    id "jaci.openrio.gradle.GradleRIO" version "2018.01.22"
+}
+
+// Pass arguments via command line to active different modes
+// Ex: ./gradlew deploy -Psim
+	// Sets simulation mode using the simulation robot class defined below
+// Ex: ./gradlew deploy -PtestBoard
+	// Sets simulation mode using the test board robot class defined below
+
+// Constants
+def DEFAULT_ROBOT_CLASS = "org.usfirst.frc.team2073.robot.RobotDelegatorPowerUpImpl"
+def SIMULATION_ROBOT_CLASS = "com.team2073.common.dev.simulation.RobotDelegatorSimulationImpl"
+def TEST_BOARD_ROBOT_CLASS = "com.team2073.common.dev.testboard.DevRobot"
+
+// Property keys
+def PROP_KEY_SIM_MODE = "sim"
+def PROP_KEY_TEST_BOARD_MODE = "testBoard"
+def PROP_KEY_REMOTE_DEBUG_MODE = "remoteDebug"
+def PROP_KEY_TEAM_NUMBER = "teamNumber"
+
+// Configurale properties
+def TEAM = 2073
+def ROBOT_CLASS = DEFAULT_ROBOT_CLASS
+def DEBUG_MODE = false
+def IP_ADDRESS
+
+println "Team 2073 custom arguments available:"
+println "\t-P" + PROP_KEY_SIM_MODE
+println "\t-P" + PROP_KEY_TEST_BOARD_MODE
+println "\t-P" + PROP_KEY_REMOTE_DEBUG_MODE
+println "\t-P" + PROP_KEY_TEAM_NUMBER + "=####"
+
+ext {
+	// Allow overriding this property from the command line/run config using -PROBOT_CLASS=com.something.SomeRobotClass
+    if (project.hasProperty(PROP_KEY_SIM_MODE)) {
+		ROBOT_CLASS = SIMULATION_ROBOT_CLASS
+		println "============================================================================"
+    	println "Simulation mode enabled. Overriding default ROBOT_CLASS of [" + DEFAULT_ROBOT_CLASS + "] with [" + ROBOT_CLASS + "]."
+		println "============================================================================"
+    } else if(project.hasProperty(PROP_KEY_TEST_BOARD_MODE)) {
+		ROBOT_CLASS = TEST_BOARD_ROBOT_CLASS
+		println "============================================================================"
+    	println "Test board mode enabled. Overriding default ROBOT_CLASS of [" + DEFAULT_ROBOT_CLASS + "] with [" + ROBOT_CLASS + "]."
+		println "============================================================================"
+    }
+    
+    if (project.hasProperty(PROP_KEY_REMOTE_DEBUG_MODE)) {
+    	DEBUG_MODE = true
+    }
+    
+    if (project.hasProperty(PROP_KEY_TEAM_NUMBER)) {
+		println "============================================================================"
+    	println "Overriding default team # of [" + TEAM + "] with [" + teamNumber + "]."
+		println "============================================================================"
+    	TEAM = teamNumber.toInteger()
+    }
+    	// println Integer.toString(TEAM).substring(0, 2) + "." + TEAM.substring(2, 4)
+    	IP_ADDRESS = "10." + TEAM.toString().substring(0, 2) + "." + TEAM.toString().substring(2, 4) + ".2"
+    	println IP_ADDRESS
+}
+
+deploy {
+    targets {
+        target("roborio", RoboRIO) {
+            team = TEAM
+            addresses << IP_ADDRESS
+        }
+    }
+    artifacts {
+        artifact('frcJava', jaci.openrio.gradle.frc.FRCJavaArtifact) {
+            targets << "roborio"
+
+            jvmArgs << '-Xmx10m'      // Set more JVM Arguments. Optional.
+            debug = DEBUG_MODE        // Enable to enable java debugging on the RoboRIO. Default: false
+            debugPort = 8348            // Set the debugging port. Default: 8348
+/*
+            arguments << 'myCustomArgs' // The command-line arguments to launch your jar with. Optional.
+            robotCommand = './myOtherProgram'       // Set the contents of robotCommand. Optional, usually created depending on above values.
+*/
+            // Other values can be edited through EmbeddedTools.
+            // See https://github.com/JacisNonsense/EmbeddedTools#spec
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compile wpilib()
+    compile ctre()
+    compile openrio.powerup.matchData()
+    compile group: 'org.json', name: 'json', version: '20171018'
+    compile group: 'ch.qos.logback', name: 'logback-classic', version: '1.2.3'
+    compile group: 'com.google.inject', name: 'guice', version: '4.1.0'
+    compile group: 'com.google.inject.extensions', name: 'guice-assistedinject', version: '4.1.0'
+    compile group: 'com.google.inject.extensions', name: 'guice-throwingproviders', version: '4.1.0'
+    compile group: 'com.mycila.guice.extensions', name: 'mycila-guice-jsr250', version: '4.0.rc1'
+    compile group: 'org.mockito', name: 'mockito-core', version: '2.15.0'
+    compile 'javax.validation:validation-api:2.0.0.Final'
+    compile 'org.reflections:reflections:0.9.11'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src'
+        }
+        resources {
+            srcDir 'src'
+        }
+    }
+ }
+
+jar {
+    from configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    manifest jaci.openrio.gradle.GradleRIOPlugin.javaManifest(ROBOT_CLASS)
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '4.4'
+}
